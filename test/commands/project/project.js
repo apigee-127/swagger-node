@@ -200,6 +200,16 @@ describe('project', function() {
       });
     });
 
+    it('should pass multiple extra arguments separately', function(done) {
+      var options = { nodeArgs: '--harmony --harmony_destructuring' };
+      project.start(projPath, options, function(err) {
+        should.not.exist(err);
+        nodemonOpts.nodeArgs.should.containDeep(['--harmony', '--harmony_destructuring']);
+        done();
+      });
+    });
+
+
     it('should combine extra arguments with debug', function(done) {
       var options = { debug: true, nodeArgs: '--harmony' };
       project.start(projPath, options, function(err) {
@@ -277,8 +287,8 @@ describe('project', function() {
         project.verify(projPath, {}, function(err, reply) {
           should.not.exist(err);
 
-          capture.output().should.containDeep('\nProject Errors\n--------------\n#/swagger:');
-          reply.should.containDeep('Results:');
+          capture.output().should.startWith('\nProject Errors\n--------------\n#/swagger:');
+          reply.should.startWith('Results:');
           done();
         })
       });
@@ -393,7 +403,7 @@ describe('project', function() {
 
     });
 
-    it('should pass assertion fotmat options', function(done) {
+    it('should pass assertion format options', function(done) {
       var options = { assertionFormat: 'expect', force: true};
       project.generateTest(projPath, options, function(err) {
         fs.existsSync(path.resolve(projPath, 'test/api/client/hello-test.js')).should.be.ok;
@@ -445,6 +455,7 @@ describe('project', function() {
 
       process.nextTick(function mockResponse() {
         stdin.send('y\n');
+        stdin.send('y\n');
       });
 
       project.generateTest(projPath, {}, function(err) {
@@ -473,9 +484,11 @@ describe('project', function() {
 
       fs.writeFileSync(path.join(projPath, 'api/swagger/swagger.yaml'), yaml.dump(swagger));
 
+      fs.appendFileSync(path.resolve(projPath, 'test/api/client/hello-test.js'), '/*should not be here*/');
       var prevFile = fs.readFileSync(path.resolve(projPath, 'test/api/client/hello-test.js'), {encoding: 'utf8'});
 
       process.nextTick(function mockResponse() {
+        stdin.send('n\n');
         stdin.send('n\n');
       });
 
@@ -511,6 +524,62 @@ describe('project', function() {
             string.should.not.equal(prevTest);
             done(err);
           });
+        });
+      });
+    });
+
+    it ('should create load tests from myLoadTest.json', function(done) {
+      var loadTargets = {
+        "loadTargets": [
+          {
+            "pathName":"/hello",
+            "operation": "get",
+            "load": {
+              "requests": 1000,
+              "concurrent": 100
+            }
+          }
+        ]
+      };
+
+      fs.writeFileSync(path.join(projPath, 'myLoadTest.json'), JSON.stringify(loadTargets));
+
+      var options = {loadTest: './myLoadTest.json', force: true};
+
+      project.generateTest(projPath, options, function(err) {
+        fs.existsSync(path.resolve(projPath, 'test/api/client/test-test.js')).should.be.ok;
+        fs.existsSync(path.resolve(projPath, 'test/api/client/hello-test.js')).should.be.ok;
+        fs.readFile(path.resolve(projPath, 'test/api/client/hello-test.js'), {encoding: 'utf8'}, function(err, string) {
+          string.search('arete').should.be.ok;
+          done(err);
+        });
+      });
+    });
+
+    it ('should create load tests from load-config.json', function(done) {
+      var loadTargets = {
+        "loadTargets": [
+          {
+            "pathName":"/hello",
+            "operation": "get",
+            "load": {
+              "requests": 1000,
+              "concurrent": 100
+            }
+          }
+        ]
+      };
+
+      fs.writeFileSync(path.join(projPath, 'load-config.json'), JSON.stringify(loadTargets));
+
+      var options = {loadTest: true, force: true};
+
+      project.generateTest(projPath, options, function(err) {
+        fs.existsSync(path.resolve(projPath, 'test/api/client/test-test.js')).should.be.ok;
+        fs.existsSync(path.resolve(projPath, 'test/api/client/hello-test.js')).should.be.ok;
+        fs.readFile(path.resolve(projPath, 'test/api/client/hello-test.js'), {encoding: 'utf8'}, function(err, string) {
+          string.search('arete').should.be.ok;
+          done(err);
         });
       });
     });
